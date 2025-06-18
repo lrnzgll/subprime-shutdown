@@ -350,18 +350,37 @@ class GameEngine
     Curses.setpos(MAP_HEIGHT + 1, 0)
     Curses.addstr("#{@local_player.name}: Health: #{@local_player.health} | Score: #{@local_player.score}")
 
-    # Display remote players health and score
-    @remote_players.each_with_index do |player, index|
-      Curses.setpos(MAP_HEIGHT + 2 + index, 0)
-      Curses.addstr("#{player.name}: Health: #{player.health} | Score: #{player.score}")
+    # Display total number of players
+    Curses.setpos(MAP_HEIGHT + 2, 0)
+    Curses.addstr("Total players: #{@remote_players.size + 1} | Players alive: #{@remote_players.count(&:alive?) + (@local_player.alive? ? 1 : 0)}")
+
+    # Display top 5 players by score (including local player if in top 5)
+    Curses.setpos(MAP_HEIGHT + 3, 0)
+    Curses.addstr("Top players:")
+
+    # Combine local and remote players for sorting
+    all_players = [@local_player] + @remote_players
+    top_players = all_players.sort_by { |p| -p.score }.take(5)
+
+    top_players.each_with_index do |player, index|
+      Curses.setpos(MAP_HEIGHT + 4 + index, 0)
+      # Highlight local player
+      player_name = player == @local_player ? "#{player.name} (YOU)" : player.name
+      Curses.addstr("#{index + 1}. #{player_name}: Score: #{player.score} | Health: #{player.health}")
     end
 
     # Display controls
-    Curses.setpos(MAP_HEIGHT + 3 + @remote_players.size, 0)
+    Curses.setpos(MAP_HEIGHT + 10, 0)
     Curses.addstr("Controls: Arrow keys to move, Space to shoot, Q to quit")
   end
 
   def check_game_over
+    # Game over conditions for a game with many players:
+    # 1. Local player is dead - you lose
+    # 2. Local player is the last one alive - you win
+    # 3. Local player reaches a high score (500) - you win
+    # 4. Only one player remains alive (and it's not you) - you lose
+
     if !@local_player.alive?
       @running = false
 
@@ -370,14 +389,36 @@ class GameEngine
 
       Curses.refresh
       sleep(3)  # Show the game over message for 3 seconds
-    elsif @remote_players.all? { |p| !p.alive? }
+    elsif @local_player.score >= 500
+      # Win by reaching high score
       @running = false
 
-      Curses.setpos(MAP_HEIGHT / 2, MAP_WIDTH / 2 - 5)
-      Curses.addstr("YOU WIN!")
+      Curses.setpos(MAP_HEIGHT / 2, MAP_WIDTH / 2 - 10)
+      Curses.addstr("YOU WIN BY HIGH SCORE!")
 
       Curses.refresh
-      sleep(3)  # Show the game over message for 3 seconds
+      sleep(3)
+    elsif @remote_players.count(&:alive?) == 0 && @local_player.alive?
+      # Win by being the last player alive
+      @running = false
+
+      Curses.setpos(MAP_HEIGHT / 2, MAP_WIDTH / 2 - 15)
+      Curses.addstr("YOU WIN! LAST PLAYER STANDING!")
+
+      Curses.refresh
+      sleep(3)
+    elsif @remote_players.count(&:alive?) == 1 && !@local_player.alive?
+      # Someone else won by being the last player alive
+      @running = false
+
+      # Find the winner
+      winner = @remote_players.find(&:alive?)
+
+      Curses.setpos(MAP_HEIGHT / 2, MAP_WIDTH / 2 - 15)
+      Curses.addstr("GAME OVER! #{winner.name} WINS!")
+
+      Curses.refresh
+      sleep(3)
     end
   end
 

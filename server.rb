@@ -6,6 +6,7 @@ require 'securerandom'
 require_relative 'lib/player'
 
 # GameRoom class to manage individual game instances
+# Supports up to 100 players per room (increased from the original 2-player limit)
 class GameRoom
   attr_reader :id, :invite_code, :host_id, :players, :player_data, :state
 
@@ -22,15 +23,46 @@ class GameRoom
   end
 
   def add_player(client_id, client, player_name)
+    # Check if we've reached the maximum number of players (100)
+    if @players.size >= 100
+      return false
+    end
+
     @players << client_id
     @clients[client_id] = client
 
     # Create a player for this client with appropriate starting position
     position = @players.size - 1
-    player = Player.new(player_name || "Player #{client_id}", position == 0 ? 10 : 70, position == 0 ? 10 : 14)
+
+    # Calculate a unique position for each player
+    # We'll distribute players around the map to avoid overlapping
+    # Map is 80x24, but we need to avoid walls (at 0 and MAP_WIDTH-1, 0 and MAP_HEIGHT-1)
+    # and obstacles in the middle
+
+    # Use a grid-based approach to position players
+    grid_size = Math.sqrt(100).ceil  # For 100 players, we need a 10x10 grid
+    grid_x = position % grid_size
+    grid_y = position / grid_size
+
+    # Calculate actual x,y coordinates with some spacing
+    # Leave margin for walls (positions 0 and 79, 0 and 23 are walls)
+    x = 5 + (grid_x * 7)  # Distribute across width (5-75)
+    y = 5 + (grid_y * 2)  # Distribute across height (5-23)
+
+    # Ensure we don't place players on obstacles
+    # Obstacles are at MAP_HEIGHT/3 and MAP_HEIGHT*2/3
+    if y == 8 || y == 16  # Approximate positions of horizontal obstacles
+      y += 1  # Move down to avoid obstacle
+    end
+
+    # Ensure we're within bounds
+    x = [x, 75].min
+    y = [y, 20].min
+
+    player = Player.new(player_name || "Player #{client_id}", x, y)
     @player_data[client_id] = player.to_hash
 
-    # If we have 2 players, we can start the game
+    # If we have at least 2 players, the game can start
     if @players.size >= 2
       @state = "ready"
     end
@@ -442,6 +474,17 @@ class GameServer
     if room && (room.state == "waiting" || room.state == "ready")
       # Add player to the room
       player_name = data[:player_name] ? data[:player_name] : "Player #{client_id}"
+
+      # Check if the room is full (100 players)
+      if room.players.size >= 100
+        send_to_client(client, {
+          action: "join_game",
+          status: "error",
+          error: "Game is full (maximum 100 players)"
+        })
+        return
+      end
+
       if room.add_player(client_id, client, player_name)
         @client_rooms[client_id] = room.id
 
