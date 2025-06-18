@@ -11,8 +11,8 @@ if __FILE__ == $PROGRAM_NAME
   puts "Welcome to Subprime Showdown!"
 
   # Use TCP connection to localhost
-  server_ip = "localhost"
-  port = 8080
+  server_ip = "5.tcp.eu.ngrok.io"
+  port = 13933
 
   puts "Connecting to server at #{server_ip}:#{port}..."
 
