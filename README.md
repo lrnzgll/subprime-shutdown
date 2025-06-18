@@ -97,11 +97,38 @@ The game uses a client-server architecture:
 - **GameEngine (lib/game_engine.rb)**: Manages game logic and rendering
 - **Player (lib/player.rb)**: Represents player state and actions
 
+## Docker Support
+
+The game server can be run in a Docker container. This is useful for hosting the server on a cloud provider or running it in a containerized environment.
+
+### Building the Docker Image
+
+To build the Docker image for the server:
+
+```bash
+docker build -t subprime-server .
+```
+
+### Running the Server in Docker
+
+To run the server in a Docker container:
+
+```bash
+docker run -p 8080:8080 subprime-server
+```
+
+This will start the server and expose port 8080 to your host machine, allowing clients to connect.
+
+### Connecting to the Dockerized Server
+
+Clients can connect to the Dockerized server just like they would to a regular server. If the Docker container is running on the same machine as the client, use "localhost" as the server address. If it's running on a different machine, use that machine's IP address.
+
 ## Troubleshooting
 
 - If you have trouble connecting, make sure your firewall allows connections on port 8080
 - If the game crashes, try restarting it
 - Make sure both players have the same version of the game
+- When using Docker, ensure port 8080 is properly exposed and not blocked by firewalls
 
 ## License
 
