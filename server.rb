@@ -73,8 +73,15 @@ class GameServer
         while @running
           begin
             # Read data from client
-            data = client.gets.chomp
-            if data && !data.empty?
+            raw_data = client.gets
+            if raw_data.nil?
+              puts "Client #{id} disconnected (received nil)"
+              handle_client_disconnect(id)
+              break
+            end
+
+            data = raw_data.chomp
+            if !data.empty?
               puts "Received data from client #{id}"
               handle_client_message(id, JSON.parse(data, symbolize_names: true))
             end
