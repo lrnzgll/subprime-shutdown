@@ -10,8 +10,7 @@ require_relative 'lib/networking'
 if __FILE__ == $PROGRAM_NAME
   puts "Welcome to Subprime Showdown!"
 
-  # Use the Heroku server URL by default, or localhost for testing
-  # Set the LOCAL_SERVER environment variable to use localhost
+  # Use TCP connection to localhost
   server_ip = "localhost"
   port = 8080
 

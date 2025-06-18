@@ -1,8 +1,7 @@
 FROM ruby:3.0-slim
 
-# Install OpenSSL development libraries
+# Install necessary development libraries
 RUN apt-get update && apt-get install -y \
-    libssl-dev \
     build-essential \
     libncurses-dev \
     pkg-config \
@@ -19,7 +18,7 @@ COPY Gemfile.lock ./
 # Install dependencies
 RUN bundle install
 
-# Expose the port the server listens on (Heroku will override this with $PORT)
+# Expose the TCP port the server listens on
 EXPOSE 8080
 
 # Run the server when the container starts
