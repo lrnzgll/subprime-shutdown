@@ -62,8 +62,8 @@ class GameRoom
     player = Player.new(player_name || "Player #{client_id}", x, y)
     @player_data[client_id] = player.to_hash
 
-    # If we have at least 2 players, the game can start
-    if @players.size >= 2
+    # If we have at least 4 players, the game can start
+    if @players.size >= 4
       @state = "ready"
     end
 

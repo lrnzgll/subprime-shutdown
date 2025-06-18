@@ -4,17 +4,17 @@ A terminal-based multiplayer shooting game with a client-server architecture.
 
 ## Overview
 
-Subprime Showdown is a simple 2D shooting game where two players battle in a terminal-based arena. The game uses a client-server architecture where:
+Subprime Showdown is a simple 2D shooting game where four players battle in a terminal-based arena. The game uses a client-server architecture where:
 
 1. A central server manages the game state
-2. Two clients connect to the server to play
+2. Four clients connect to the server to play
 3. Each client sends player actions to the server
 4. The server broadcasts the game state to all clients
 
 ## Features
 
 - Terminal-based gameplay using the curses gem
-- 1v1 multiplayer over network
+- 4-player multiplayer over network
 - Top-down Doom-like perspective
 - ASCII graphics
 - Player movement and shooting mechanics

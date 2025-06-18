@@ -116,8 +116,8 @@ class Networking
 
   def wait_for_game_start
     puts "Waiting for game to start..."
-    puts "Share the invite code with another player and wait for them to join."
-    puts "The game will start automatically when another player joins."
+    puts "Share the invite code with other players and wait for them to join."
+    puts "The game will start automatically when at least 4 players have joined."
     puts "Waiting for up to 5 minutes..."
 
     # Wait for game_started message with a longer timeout (5 minutes)
