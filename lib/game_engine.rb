@@ -12,21 +12,20 @@ class GameEngine
   BULLET = '*'
   EMPTY = ' '
 
-  def initialize(is_host:, server_ip:, port:)
-    @is_host = is_host
+  def initialize(server_ip:, port:)
     @running = true
     @map = Array.new(MAP_HEIGHT) { Array.new(MAP_WIDTH, EMPTY) }
+    @other_player_id = nil
 
     # Create walls around the map
     create_map
 
     # Set up networking
-    @networking = Networking.new(is_host, server_ip, port)
+    @networking = Networking.new(server_ip, port)
 
-    # Initialize players
-    player_name = "Player #{@is_host ? '1' : '2'}"
-    @local_player = Player.new(player_name, @is_host ? 10 : 70, @is_host ? 10 : 14)
-    @remote_player = Player.new("Remote Player", @is_host ? 70 : 10, @is_host ? 14 : 10)
+    # Players will be initialized after connecting to the server
+    @local_player = nil
+    @remote_player = nil
   end
 
   def start
@@ -37,12 +36,47 @@ class GameEngine
     Curses.stdscr.keypad(true)  # Enable arrow keys
     Curses.timeout = 100  # Non-blocking input with 100ms timeout
 
-    # Connect to remote player
+    # Connect to the server
     if @networking.connect
+      # Wait for the game to be ready (both players connected)
+      puts "Waiting for another player to connect..."
+
+      while !@networking.game_ready
+        @networking.process_updates
+        sleep(0.5)
+      end
+
+      # Initialize players based on client_id
+      client_id = @networking.client_id
+      @other_player_id = (client_id + 1) % 2
+
+      # Wait until we have data for both players
+      while @networking.players.size < 2 ||
+            !@networking.players[client_id] ||
+            !@networking.players[@other_player_id] ||
+            !@networking.players[client_id].is_a?(Hash) ||
+            !@networking.players[client_id][:x] ||
+            !@networking.players[@other_player_id].is_a?(Hash) ||
+            !@networking.players[@other_player_id][:x]
+        puts "Waiting for complete player data..."
+        @networking.process_updates
+        sleep(0.5)
+      end
+
+      # Initialize local player
+      player_data = @networking.players[client_id]
+      @local_player = Player.new("Player #{client_id + 1}", player_data[:x], player_data[:y])
+
+      # Initialize remote player
+      other_player_data = @networking.players[@other_player_id]
+      @remote_player = Player.new("Player #{@other_player_id + 1}", other_player_data[:x], other_player_data[:y])
+
+      puts "Game starting! You are Player #{client_id + 1}"
+
       game_loop
     else
       Curses.close_screen
-      puts "Failed to establish connection."
+      puts "Failed to connect to the server."
     end
   end
 
@@ -56,12 +90,19 @@ class GameEngine
       # Update game state
       update_game_state
 
-      # Send local player state to remote player
-      @networking.send_data(@local_player.to_hash)
+      # Send local player state to server
+      @networking.send_data({ player: @local_player.to_hash })
 
-      # Receive remote player state
-      remote_data = @networking.receive_data
-      @remote_player.update_from_hash(remote_data) if remote_data
+      # Process updates from server
+      if !@networking.process_updates
+        @running = false
+        break
+      end
+
+      # Update remote player from server data
+      if @networking.players && @networking.players[@other_player_id]
+        @remote_player.update_from_hash(@networking.players[@other_player_id])
+      end
 
       # Render the game
       render

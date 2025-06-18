@@ -1,6 +1,15 @@
 # Subprime Showdown
 
-A terminal-based multiplayer shooter game with ASCII graphics.
+A terminal-based multiplayer shooting game with a client-server architecture.
+
+## Overview
+
+Subprime Showdown is a simple 2D shooting game where two players battle in a terminal-based arena. The game uses a client-server architecture where:
+
+1. A central server manages the game state
+2. Two clients connect to the server to play
+3. Each client sends player actions to the server
+4. The server broadcasts the game state to all clients
 
 ## Features
 
@@ -10,6 +19,7 @@ A terminal-based multiplayer shooter game with ASCII graphics.
 - ASCII graphics
 - Player movement and shooting mechanics
 - Health and scoring system
+- Client-server architecture for online play
 
 ## Requirements
 
@@ -40,26 +50,21 @@ A terminal-based multiplayer shooter game with ASCII graphics.
 
 ## How to Play
 
-### Starting the Game
+See [how_do_we_run_it.md](how_do_we_run_it.md) for detailed instructions.
 
-Run the game with:
-```
-ruby game.rb
-```
+### Quick Start
 
-### Hosting a Game
+1. Start the server:
+   ```
+   ruby server.rb
+   ```
 
-1. Select option 1 to host a game
-2. The game will display your IP address and port (default: 8080)
-3. Share this information with the player who wants to join
-4. Wait for the other player to connect
+2. Start the client on each player's machine:
+   ```
+   ruby game.rb
+   ```
 
-### Joining a Game
-
-1. Select option 2 to join a game
-2. Enter the host's IP address
-3. Enter the port (default: 8080)
-4. The game will connect to the host
+3. Enter the server's IP address and port when prompted
 
 ### Controls
 
@@ -81,6 +86,16 @@ ruby game.rb
 - `*`: Bullets
 - `#`: Walls
 - ` `: Empty space
+
+## Architecture
+
+The game uses a client-server architecture:
+
+- **Server (server.rb)**: Manages connections, game state, and broadcasts updates
+- **Client (game.rb)**: Handles user input, rendering, and communicates with the server
+- **Networking (lib/networking.rb)**: Handles network communication
+- **GameEngine (lib/game_engine.rb)**: Manages game logic and rendering
+- **Player (lib/player.rb)**: Represents player state and actions
 
 ## Troubleshooting
 

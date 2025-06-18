@@ -1,41 +1,49 @@
 require 'socket'
 require 'json'
 
-# Networking class to handle communication between players
+# Networking class to handle communication with the game server
 class Networking
-  def initialize(is_host, server_ip, port)
-    @is_host = is_host
+  attr_reader :client_id, :connected, :game_ready, :players
+
+  def initialize(server_ip, port)
     @server_ip = server_ip
     @port = port
     @connected = false
+    @client_id = nil
+    @game_ready = false
+    @players = []
   end
 
   def connect
-    if @is_host
-      # Host mode: create a server and wait for a client to connect
-      begin
-        @server = TCPServer.new(@port)
-        puts "Waiting for player to connect on port #{@port}..."
-        @socket = @server.accept
-        @connected = true
-        puts "Player connected!"
+    # Connect to the game server
+    begin
+      puts "Connecting to server at #{@server_ip}:#{@port}..."
+      @socket = TCPSocket.new(@server_ip, @port)
+      @connected = true
+
+      # Get initial data from server
+      initial_data = receive_data
+      if initial_data
+        @client_id = initial_data[:client_id]
+        @game_ready = initial_data[:game_ready]
+
+        if initial_data[:players]
+          @players = initial_data[:players]
+        elsif initial_data[:player]
+          # If server sends single player data, add it to players array
+          # Make sure the array is large enough
+          @players = Array.new(2) if @players.empty?
+          @players[@client_id] = initial_data[:player]
+        end
+
+        puts "Connected to server! You are Player #{@client_id + 1}"
         return true
-      rescue => e
-        puts "Error creating server: #{e.message}"
-        return false
       end
-    else
-      # Client mode: connect to the host
-      begin
-        puts "Connecting to host at #{@server_ip}:#{@port}..."
-        @socket = TCPSocket.new(@server_ip, @port)
-        @connected = true
-        puts "Connected to host!"
-        return true
-      rescue => e
-        puts "Error connecting to host: #{e.message}"
-        return false
-      end
+
+      return false
+    rescue => e
+      puts "Error connecting to server: #{e.message}"
+      return false
     end
   end
 
@@ -76,7 +84,27 @@ class Networking
 
   def close
     @socket.close if @socket && !@socket.closed?
-    @server.close if @is_host && @server && !@server.closed?
     @connected = false
+  end
+
+  # Process server updates and return game state
+  def process_updates
+    data = receive_data
+    if data
+      if data[:game_ready]
+        @game_ready = true
+      end
+
+      if data[:players]
+        @players = data[:players]
+      end
+
+      if data[:game_over]
+        puts "Game over: #{data[:reason]}"
+        return false
+      end
+    end
+
+    return true
   end
 end
