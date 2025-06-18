@@ -6,7 +6,7 @@ WORKDIR /app
 COPY server.rb ./
 COPY lib/ ./lib/
 
-# Expose the port the server listens on
+# Expose the port the server listens on (Heroku will override this with $PORT)
 EXPOSE 8080
 
 # Run the server when the container starts

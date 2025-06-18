@@ -5,16 +5,24 @@ require 'json'
 require_relative 'lib/player'
 
 class GameServer
-  def initialize(port = 8080)
+  def initialize(port = ENV['PORT'] ? ENV['PORT'].to_i : 8080)
     @port = port
     @clients = []
     @players = []
     @running = true
+    puts "Initializing server with port: #{@port}"
   end
 
   def start
     puts "Starting Subprime Showdown server on port #{@port}..."
-    @server = TCPServer.new(@port)
+    begin
+      @server = TCPServer.new(@port)
+      puts "Server socket successfully created and bound to port #{@port}"
+    rescue => e
+      puts "ERROR: Failed to create server socket: #{e.message}"
+      puts "ERROR: #{e.backtrace.join("\n")}"
+      return
+    end
 
     puts "Waiting for players to connect..."
 
@@ -56,27 +64,35 @@ class GameServer
   private
 
   def server_loop
+    puts "Starting main server loop with #{@clients.size} connected clients"
+
     # Create a thread for each client to handle incoming messages
     threads = @clients.map.with_index do |client, id|
       Thread.new do
+        puts "Started thread for client #{id}"
         while @running
           begin
             # Read data from client
             data = client.gets.chomp
             if data && !data.empty?
+              puts "Received data from client #{id}"
               handle_client_message(id, JSON.parse(data, symbolize_names: true))
             end
           rescue => e
             puts "Error reading from client #{id}: #{e.message}"
+            puts "Error backtrace: #{e.backtrace.join("\n")}"
             handle_client_disconnect(id)
             break
           end
         end
+        puts "Thread for client #{id} terminated"
       end
     end
 
+    puts "All client threads started, waiting for them to complete"
     # Wait for all threads to complete
     threads.each(&:join)
+    puts "All client threads completed, server loop ending"
   end
 
   def handle_client_message(client_id, message)
