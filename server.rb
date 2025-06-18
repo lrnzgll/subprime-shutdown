@@ -63,7 +63,7 @@ class GameRoom
     puts "Starting game loop for room #{@id} with #{@players.size} players"
 
     # Create a thread for each client to handle incoming messages
-    @threads = @players.map do |client_id|
+    @client_threads = @players.map do |client_id|
       client = @clients[client_id]
 
       Thread.new do
@@ -78,7 +78,7 @@ class GameRoom
             end
 
             # Read data from client with timeout to avoid blocking indefinitely
-            ready = IO.select([client], nil, nil, 1)
+            ready = IO.select([client], nil, nil, 0.1)  # Reduced timeout for better responsiveness
             if ready && ready[0].include?(client)
               raw_data = client.gets
               if raw_data.nil?
@@ -89,8 +89,9 @@ class GameRoom
 
               data = raw_data.chomp
               if !data.empty?
-                puts "Received data from client #{client_id} in room #{@id}"
-                handle_client_message(client_id, JSON.parse(data, symbolize_names: true))
+                # Process client message in the client thread
+                # but don't broadcast immediately - the game loop will handle that
+                handle_client_message_no_broadcast(client_id, JSON.parse(data, symbolize_names: true))
               end
             end
           rescue => e
@@ -104,11 +105,41 @@ class GameRoom
       end
     end
 
+    # Single game loop thread instead of per-client threads for broadcasting
+    @game_thread = Thread.new do
+      last_broadcast_time = Time.now
+
+      while @running
+        # Process all client messages in a controlled rate
+        if Time.now - last_broadcast_time >= 0.1  # 10 updates per second
+          broadcast_game_state
+          last_broadcast_time = Time.now
+        end
+
+        sleep(0.01)  # Small sleep to prevent CPU hogging
+      end
+
+      puts "Game loop for room #{@id} terminated"
+    end
+
     # Wait for all threads to complete in a separate thread
     Thread.new do
-      @threads.each(&:join)
-      puts "All client threads for room #{@id} completed, game loop ending"
+      @client_threads.each(&:join)
+      @game_thread.join
+      puts "All threads for room #{@id} completed, game loop ending"
       @state = "completed"
+    end
+  end
+
+  # Handle client message without broadcasting immediately
+  def handle_client_message_no_broadcast(client_id, message)
+    # Handle game-specific messages
+    if message[:action] == "game_action" && message[:data]
+      # Update the player state based on the message
+      if message[:data][:player] && @player_data[client_id]
+        # Update player data
+        @player_data[client_id].merge!(message[:data][:player])
+      end
     end
   end
 

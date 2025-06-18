@@ -18,6 +18,14 @@ class GameEngine
     @player_id = nil
     @players = []
 
+    # For rate limiting and optimization
+    @update_counter = 0
+    @player_changed = false
+    @last_buffer = nil
+    @map_buffer = nil
+    @last_update_time = Time.now
+    @target_frame_time = 1.0 / 60  # Target 60 FPS
+
     # Create walls around the map
     create_map
 
@@ -113,9 +121,22 @@ class GameEngine
       @remote_players << remote_player
     end
 
+    # Pre-render static map elements
+    @map_buffer = Array.new(MAP_HEIGHT) { Array.new(MAP_WIDTH, nil) }
+    render_static_map
+
     puts "Game starting! You are Player #{@player_id}"
 
     game_loop
+  end
+
+  # Pre-render the static map elements
+  def render_static_map
+    @map.each_with_index do |row, y|
+      row.each_with_index do |cell, x|
+        @map_buffer[y][x] = cell
+      end
+    end
   end
 
   # Show menu to create or join game
@@ -145,16 +166,32 @@ class GameEngine
 
   def game_loop
     while @running
-      # Handle input
+      frame_start = Time.now
+
+      # Store previous state to detect changes
+      prev_x, prev_y, prev_dir = @local_player.x, @local_player.y, @local_player.direction
+      prev_bullets_count = @local_player.bullets.size
+
+      # Handle input (may change player state)
       handle_input
+
+      # Check if player state changed
+      @player_changed ||= (prev_x != @local_player.x || prev_y != @local_player.y ||
+                        prev_dir != @local_player.direction ||
+                        prev_bullets_count != @local_player.bullets.size)
 
       # Update game state
       update_game_state
 
-      # Send local player state to server
-      @networking.send_game_action(@local_player.to_hash)
+      # Send updates less frequently or when player state changes
+      @update_counter += 1
+      if (@player_changed && @update_counter >= 2) || @update_counter >= 5
+        @networking.send_game_action(@local_player.to_hash)
+        @player_changed = false
+        @update_counter = 0
+      end
 
-      # Process updates from server
+      # Process updates from server (could also be rate-limited)
       if !@networking.process_updates
         @running = false
         break
@@ -169,8 +206,10 @@ class GameEngine
       # Check for game over
       check_game_over
 
-      # Sleep to control game speed
-      sleep(0.05)
+      # Calculate how long to sleep to maintain target frame rate
+      elapsed = Time.now - frame_start
+      sleep_time = [@target_frame_time - elapsed, 0].max
+      sleep(sleep_time) if sleep_time > 0
     end
 
     # Clean up
@@ -263,36 +302,43 @@ class GameEngine
   end
 
   def render
-    # Clear the screen
-    Curses.clear
+    # Create a new buffer based on the static map
+    buffer = Marshal.load(Marshal.dump(@map_buffer))
 
-    # Render the map
-    @map.each_with_index do |row, y|
-      row.each_with_index do |cell, x|
-        Curses.setpos(y, x)
-        Curses.addstr(cell)
+    # Add dynamic elements to buffer
+
+    # Add local player to buffer
+    buffer[@local_player.y][@local_player.x] = @local_player.char
+
+    # Add remote players to buffer
+    @remote_players.each do |player|
+      if player.y >= 0 && player.y < MAP_HEIGHT && player.x >= 0 && player.x < MAP_WIDTH
+        buffer[player.y][player.x] = player.char
       end
     end
 
-    # Render local player
-    Curses.setpos(@local_player.y, @local_player.x)
-    Curses.addstr(@local_player.char)
-
-    # Render remote players
-    @remote_players.each do |player|
-      Curses.setpos(player.y, player.x)
-      Curses.addstr(player.char)
-    end
-
-    # Render bullets
+    # Add bullets to buffer
     [@local_player, *@remote_players].each do |player|
       player.bullets.each do |bullet|
-        Curses.setpos(bullet[:y], bullet[:x])
-        Curses.addstr(BULLET)
+        if bullet[:y] >= 0 && bullet[:y] < MAP_HEIGHT && bullet[:x] >= 0 && bullet[:x] < MAP_WIDTH
+          buffer[bullet[:y]][bullet[:x]] = BULLET
+        end
       end
     end
 
-    # Render HUD
+    # Only update screen positions that changed
+    buffer.each_with_index do |row, y|
+      row.each_with_index do |cell, x|
+        if @last_buffer.nil? || @last_buffer[y][x] != cell
+          Curses.setpos(y, x)
+          Curses.addstr(cell.to_s)
+        end
+      end
+    end
+
+    @last_buffer = buffer
+
+    # Render HUD (always update HUD as it may change frequently)
     render_hud
 
     # Refresh the screen

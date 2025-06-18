@@ -16,6 +16,7 @@ class Networking
     @invite_code = nil
     @host_id = nil
     @last_message = nil
+    @last_sent_data = nil  # For delta compression
   end
 
   def connect
@@ -25,6 +26,13 @@ class Networking
 
       # Use regular TCP connection
       @socket = TCPSocket.new(@server_ip, @port)
+
+      # Set larger socket buffer sizes for better performance
+      @socket.setsockopt(Socket::SOL_SOCKET, Socket::SO_RCVBUF, 65536)
+      @socket.setsockopt(Socket::SOL_SOCKET, Socket::SO_SNDBUF, 65536)
+
+      # Set TCP_NODELAY to disable Nagle's algorithm for lower latency
+      @socket.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
 
       @connected = true
 
@@ -147,7 +155,39 @@ class Networking
 
     begin
       # Convert data to JSON and send it
-      json_data = JSON.generate(data)
+      # For game actions, we can optimize by avoiding unnecessary serialization
+      if data[:action] == "game_action" && @last_sent_data && data[:data][:player]
+        # Only send changed attributes for player data
+        changed_data = {
+          action: data[:action],
+          data: {
+            player: {}
+          }
+        }
+
+        # Only include attributes that have changed
+        player_data = data[:data][:player]
+        last_player_data = @last_sent_data[:data][:player] rescue {}
+
+        player_data.each do |key, value|
+          if last_player_data[key] != value
+            changed_data[:data][:player][key] = value
+          end
+        end
+
+        # Always include position and direction for prediction
+        [:x, :y, :direction].each do |key|
+          changed_data[:data][:player][key] = player_data[key] if player_data[key]
+        end
+
+        json_data = JSON.generate(changed_data)
+        @last_sent_data = data.dup
+      else
+        # For other messages, use standard generation
+        json_data = JSON.generate(data)
+        @last_sent_data = data.dup if data[:action] == "game_action"
+      end
+
       @socket.puts(json_data)
       return true
     rescue => e
@@ -161,8 +201,8 @@ class Networking
     return nil unless @connected
 
     begin
-      # Set socket to non-blocking mode
-      ready = IO.select([@socket], nil, nil, 0.01)
+      # Set socket to non-blocking mode with a slightly longer timeout for better reliability
+      ready = IO.select([@socket], nil, nil, 0.02)  # Increased from 0.01 to 0.02
 
       if ready && ready[0].include?(@socket)
         data = @socket.gets.chomp
@@ -205,7 +245,14 @@ class Networking
         # If we received a different message, process it
         process_message(data)
       end
-      sleep(0.1)
+
+      # Reduced sleep time for more responsive gameplay
+      # Use a shorter sleep for game-related messages, longer for lobby messages
+      if expected_actions.include?("game_update") || expected_actions.include?("game_action")
+        sleep(0.02)  # Very short sleep for game updates
+      else
+        sleep(0.05)  # Shorter sleep than before (was 0.1) but still reasonable for lobby
+      end
     end
 
     puts "Timeout waiting for #{expected_actions.join(' or ')} message"
