@@ -1,6 +1,5 @@
 require 'socket'
 require 'json'
-require 'openssl'
 
 # Networking class to handle communication with the game server
 class Networking
@@ -24,19 +23,8 @@ class Networking
     begin
       puts "Connecting to server at #{@server_ip}:#{@port}..."
 
-      if @port == 443
-        # Use SSL/TLS for secure connection on port 443
-        tcp_socket = TCPSocket.new(@server_ip, @port)
-        ssl_context = OpenSSL::SSL::SSLContext.new
-        ssl_context.verify_mode = OpenSSL::SSL::VERIFY_NONE  # For development only
-        @socket = OpenSSL::SSL::SSLSocket.new(tcp_socket, ssl_context)
-        @socket.sync_close = true
-        @socket.connect
-        puts "Established secure connection using SSL/TLS"
-      else
-        # Use regular TCP connection for other ports
-        @socket = TCPSocket.new(@server_ip, @port)
-      end
+      # Use regular TCP connection
+      @socket = TCPSocket.new(@server_ip, @port)
 
       @connected = true
 

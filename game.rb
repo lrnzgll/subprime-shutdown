@@ -12,13 +12,8 @@ if __FILE__ == $PROGRAM_NAME
 
   # Use the Heroku server URL by default, or localhost for testing
   # Set the LOCAL_SERVER environment variable to use localhost
-    if ENV['LOCAL_SERVER']
-    server_ip = "localhost"
-    port = 8080
-  else
-    server_ip = "subprimeshowdown-70e905ab4841.herokuapp.com"
-    port = 443  # Use HTTPS port for Heroku
-  end
+  server_ip = "localhost"
+  port = 8080
 
   puts "Connecting to server at #{server_ip}:#{port}..."
 

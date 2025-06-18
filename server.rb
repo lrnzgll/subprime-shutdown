@@ -2,7 +2,6 @@
 
 require 'socket'
 require 'json'
-require 'openssl'
 require 'securerandom'
 require_relative 'lib/player'
 
@@ -237,33 +236,8 @@ class GameServer
   def start
     puts "Starting Subprime Showdown server on port #{@port}..."
     begin
-      tcp_server = TCPServer.new(@port)
-
-      if @port == 443
-        # Set up SSL/TLS for secure connections on port 443
-        puts "Setting up SSL/TLS for secure connections on port 443"
-        ssl_context = OpenSSL::SSL::SSLContext.new
-
-        # In production, you would use proper certificate files
-        # For development/testing, we'll generate a self-signed certificate
-        ssl_context.cert = OpenSSL::X509::Certificate.new
-        ssl_context.key = OpenSSL::PKey::RSA.new(2048)
-        ssl_context.cert.version = 2
-        ssl_context.cert.serial = 1
-        name = OpenSSL::X509::Name.new([['CN', 'localhost']])
-        ssl_context.cert.subject = name
-        ssl_context.cert.issuer = name
-        ssl_context.cert.not_before = Time.now
-        ssl_context.cert.not_after = Time.now + 365 * 24 * 60 * 60 # 1 year validity
-        ssl_context.cert.public_key = ssl_context.key.public_key
-        ssl_context.cert.sign(ssl_context.key, OpenSSL::Digest::SHA256.new)
-
-        @server = OpenSSL::SSL::SSLServer.new(tcp_server, ssl_context)
-        puts "SSL/TLS server successfully created and bound to port #{@port}"
-      else
-        @server = tcp_server
-        puts "TCP server successfully created and bound to port #{@port}"
-      end
+      @server = TCPServer.new(@port)
+      puts "TCP server successfully created and bound to port #{@port}"
     rescue => e
       puts "ERROR: Failed to create server socket: #{e.message}"
       puts "ERROR: #{e.backtrace.join("\n")}"
