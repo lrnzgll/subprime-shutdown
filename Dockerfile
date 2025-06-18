@@ -3,6 +3,9 @@ FROM ruby:3.0-slim
 # Install OpenSSL development libraries
 RUN apt-get update && apt-get install -y \
     libssl-dev \
+    build-essential \
+    libncurses-dev \
+    pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
